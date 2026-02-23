@@ -140,7 +140,40 @@ export function resolveAgentSkillsFilter(
   cfg: OpenClawConfig,
   agentId: string,
 ): string[] | undefined {
-  return normalizeSkillFilter(resolveAgentConfig(cfg, agentId)?.skills);
+  const skills = resolveAgentConfig(cfg, agentId)?.skills;
+  if (!skills) {
+    return undefined;
+  }
+  // Handle legacy format: skills: ["skill1", "skill2"]
+  if (Array.isArray(skills)) {
+    return normalizeSkillFilter(skills);
+  }
+  // Handle new format: skills: {allow: [...], deny: [...]}
+  if (typeof skills === "object") {
+    // For now, just use allow list if present (deny filtering happens later)
+    const allowList = skills.allow;
+    const alsoAllow = skills.alsoAllow;
+    if (allowList || alsoAllow) {
+      const combined = [...(allowList ?? []), ...(alsoAllow ?? [])];
+      return normalizeSkillFilter(combined);
+    }
+  }
+  return undefined;
+}
+
+export function resolveAgentSkillsDenyFilter(
+  cfg: OpenClawConfig,
+  agentId: string,
+): string[] | undefined {
+  const skills = resolveAgentConfig(cfg, agentId)?.skills;
+  if (!skills || Array.isArray(skills)) {
+    return undefined;
+  }
+  // Handle new format: skills: {allow: [...], deny: [...]}
+  if (typeof skills === "object") {
+    return normalizeSkillFilter(skills.deny);
+  }
+  return undefined;
 }
 
 function resolveModelPrimary(raw: unknown): string | undefined {

@@ -5,6 +5,13 @@ import type { HumanDelayConfig, IdentityConfig } from "./types.base.js";
 import type { GroupChatConfig } from "./types.messages.js";
 import type { AgentToolsConfig, MemorySearchConfig } from "./types.tools.js";
 
+export type AgentSkillsConfig = {
+  allow?: string[];
+  /** Additional allowlist entries merged into allow. */
+  alsoAllow?: string[];
+  deny?: string[];
+};
+
 export type AgentConfig = {
   id: string;
   default?: boolean;
@@ -12,8 +19,8 @@ export type AgentConfig = {
   workspace?: string;
   agentDir?: string;
   model?: AgentModelConfig;
-  /** Optional allowlist of skills for this agent (omit = all skills; empty = none). */
-  skills?: string[];
+  /** Optional skill filtering for this agent. */
+  skills?: string[] | AgentSkillsConfig;
   memorySearch?: MemorySearchConfig;
   /** Human-like delay between block replies for this agent. */
   humanDelay?: HumanDelayConfig;

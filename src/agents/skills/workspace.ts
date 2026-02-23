@@ -10,6 +10,7 @@ import type { OpenClawConfig } from "../../config/config.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { CONFIG_DIR, resolveUserPath } from "../../utils.js";
 import { resolveSandboxPath } from "../sandbox-paths.js";
+import { resolveAgentSkillsDenyFilter } from "../agent-scope.js";
 import { resolveBundledSkillsDir } from "./bundled-dir.js";
 import { shouldIncludeSkill } from "./config.js";
 import { normalizeSkillFilter } from "./filter.js";
@@ -69,19 +70,33 @@ function filterSkillEntries(
   config?: OpenClawConfig,
   skillFilter?: string[],
   eligibility?: SkillEligibilityContext,
+  agentId?: string,
 ): SkillEntry[] {
   let filtered = entries.filter((entry) => shouldIncludeSkill({ entry, config, eligibility }));
+  
+  // Apply agent-level deny filter first
+  if (agentId && config) {
+    const denyFilter = resolveAgentSkillsDenyFilter(config, agentId);
+    if (denyFilter && denyFilter.length > 0) {
+      skillsLogger.debug(`Applying skill deny filter: ${denyFilter.join(", ")}`);
+      filtered = filtered.filter((entry) => !denyFilter.includes(entry.skill.name));
+      skillsLogger.debug(
+        `After deny filter: ${filtered.map((entry) => entry.skill.name).join(", ") || "(none)"}`,
+      );
+    }
+  }
+  
   // If skillFilter is provided, only include skills in the filter list.
   if (skillFilter !== undefined) {
     const normalized = normalizeSkillFilter(skillFilter) ?? [];
     const label = normalized.length > 0 ? normalized.join(", ") : "(none)";
-    skillsLogger.debug(`Applying skill filter: ${label}`);
+    skillsLogger.debug(`Applying skill allow filter: ${label}`);
     filtered =
       normalized.length > 0
         ? filtered.filter((entry) => normalized.includes(entry.skill.name))
         : [];
     skillsLogger.debug(
-      `After skill filter: ${filtered.map((entry) => entry.skill.name).join(", ") || "(none)"}`,
+      `After allow filter: ${filtered.map((entry) => entry.skill.name).join(", ") || "(none)"}`,
     );
   }
   return filtered;
@@ -476,6 +491,8 @@ type WorkspaceSkillBuildOptions = {
   entries?: SkillEntry[];
   /** If provided, only include skills with these names */
   skillFilter?: string[];
+  /** Agent ID for per-agent skill filtering */
+  agentId?: string;
   eligibility?: SkillEligibilityContext;
 };
 
@@ -493,6 +510,7 @@ function resolveWorkspaceSkillPromptState(
     opts?.config,
     opts?.skillFilter,
     opts?.eligibility,
+    opts?.agentId,
   );
   const promptEntries = eligible.filter(
     (entry) => entry.invocation?.disableModelInvocation !== true,
@@ -659,6 +677,7 @@ export function buildWorkspaceSkillCommandSpecs(
     bundledSkillsDir?: string;
     entries?: SkillEntry[];
     skillFilter?: string[];
+    agentId?: string;
     eligibility?: SkillEligibilityContext;
     reservedNames?: Set<string>;
   },
@@ -669,6 +688,7 @@ export function buildWorkspaceSkillCommandSpecs(
     opts?.config,
     opts?.skillFilter,
     opts?.eligibility,
+    opts?.agentId,
   );
   const userInvocable = eligible.filter((entry) => entry.invocation?.userInvocable !== false);
   const used = new Set<string>();
